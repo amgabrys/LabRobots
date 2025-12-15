@@ -1,5 +1,3 @@
-## MULTIPLE PLATE DILUTIONS V6.3 - NO SAMPLE PIPETTE MIXING, MINIMAL DILUTION MIXING
-
 from opentrons import protocol_api
 import math
 
