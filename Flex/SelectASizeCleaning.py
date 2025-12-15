@@ -57,7 +57,8 @@ def run(protocol: protocol_api.ProtocolContext):
     pip1000.flow_rate.blow_out = 300
 
     # FIXTURES & MODULES
-    trash = protocol.load_trash_bin("D3")
+    # Changed from trash bin to waste chute (fixed in slot D3)
+    waste_chute = protocol.load_waste_chute()
     temp_module = protocol.load_module('temperature module gen2', 'A3')
     temp_adapter = temp_module.load_adapter('opentrons_96_well_aluminum_block')
     mag_block = protocol.load_module('magneticBlockV1', 'C1') 
@@ -92,8 +93,9 @@ def run(protocol: protocol_api.ProtocolContext):
     elution_columns = final_elution_plate.columns()
 
     # FUNCTIONS
-    def drop_tip_50(): pip50.return_tip() if DryRun else pip50.drop_tip(trash)
-    def drop_tip_1000(): pip1000.return_tip() if DryRun else pip1000.drop_tip(trash)
+    # Updated drop_tip functions to use waste_chute
+    def drop_tip_50(): pip50.return_tip() if DryRun else pip50.drop_tip(waste_chute)
+    def drop_tip_1000(): pip1000.return_tip() if DryRun else pip1000.drop_tip(waste_chute)
 
     def bead_mixing(well, pip, mvol, reps=8):
         vol = 200
@@ -134,27 +136,16 @@ def run(protocol: protocol_api.ProtocolContext):
     
     # STEP 2: Transfer magbeads (mix before each aspirate)
     protocol.comment('STEP 2: Transfer magbeads with 50µL tips (with mixing before each)')
-   # pip1000.pick_up_tip(mixing_tips_1000.columns()[0][0])
     pip50.pick_up_tip(transfer_tips_50.columns()[0][0])
     for col_idx in range(12):
         current_column = sample_columns[col_idx]
         bead_mixing(water_magbead_mix, pip1000, 200 - (10 * col_idx), 5)
-        # pip50.pick_up_tip(transfer_tips_50.columns()[col_idx][0])
         pip50.aspirate(26, water_magbead_mix.bottom(0.3))
         pip50.dispense(26, current_column[0].bottom(0.3))
         pip50.return_tip()
         if col_idx < 11:
             pip50.pick_up_tip(transfer_tips_50.columns()[col_idx + 1][0])
-        # else:
-        #     pip50.return_tip()
     pip1000.return_tip()
-
-    # STEP 3: Mix samples with P1000
-    # protocol.comment('STEP 3: Mix samples with P1000')
-    # pip1000.pick_up_tip(mixing_tips_1000.columns()[0][0])
-    # for col_idx in range(12):
-    #     bead_mixing(sample_columns[col_idx][0], pip1000, 200, 10)
-    # pip1000.return_tip()
 
     # STEP 4: Final mix with pip50
     protocol.comment('STEP 4: Final mix with pip50')
