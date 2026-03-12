@@ -1,0 +1,8 @@
+﻿source_plate,source_well,destination_plate,destination_well,initial_sample_volume,water_volume,sample_volume
+1,A1,1,C1,13.00,1.00,12.00
+1,C5,1,D1,50.00,30.00,1.00
+1,G2,1,E1,13.00,2.00,5.00
+1,F7,1,H5,13.00,4.00,0.50
+2,D4,2,B2,20.00,10.00,1.00
+2,E3,2,E6,13.00,5.00,14.00
+2,B6,2,D2,50.00,35.00,12.00

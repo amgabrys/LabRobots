@@ -1,0 +1,9 @@
+"","source_plate","source_well","destination_plate","destination_well","initial_concentration","initial_sample_volume","dilution_concentration","sample_vol","final_vol","water_volume"
+"1",1,"A1",1,"A1",15.1,30,1,1,15.1,14.1
+"2",1,"B1",1,"B1",7.58,30,1,1.97889182058047,15,13.0211081794195
+"3",1,"D1",1,"C1",7.56,30,1,1.98412698412698,15,13.015873015873
+"4",1,"E1",1,"D1",54.6,30,1,1,54.6,53.6
+"5",1,"F1",1,"E1",22,30,1,1,22,21
+"6",1,"H1",1,"F1",0.34,30,NA,NA,NA,NA
+"7",1,"C2",1,"G1",91.4,30,1,1,91.4,90.4
+"8",1,"D2",1,"H1",0.212,30,NA,NA,NA,NA
