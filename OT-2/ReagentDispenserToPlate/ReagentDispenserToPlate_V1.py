@@ -60,21 +60,20 @@ def run(protocol: protocol_api.ProtocolContext):
         return
     
     # Step 2: Parse volume data for each reagent
-    # Look for rows with "Volume (ul)" followed by numbered columns, then row letters with values
     for reagent_info in reagent_name_rows:
         reagent_name = reagent_info['name']
         start_row = reagent_info['row_idx']
         
-        # Find the "Volume (ul)" row for this reagent (should be next row)
+        # Find the "Volume (ul)" row for this reagent
         volume_header_row = None
-        col_number_positions = {}  # {column_number: col_idx}
+        col_number_positions = {}
         
         for row_idx in range(start_row, min(start_row + 3, len(csv_rows))):
             row = csv_rows[row_idx]
             for col_idx, cell in enumerate(row):
                 if 'Volume (ul)' in str(cell) or 'Volume' in str(cell):
                     volume_header_row = row_idx
-                    # Map column numbers (1.0, 2.0, etc.) to their positions
+                    # Map column numbers to their positions
                     for num_col_idx in range(col_idx + 1, min(col_idx + 15, len(row))):
                         try:
                             col_num = int(float(str(row[num_col_idx]).strip()))
@@ -117,11 +116,11 @@ def run(protocol: protocol_api.ProtocolContext):
                             if volume > 0:
                                 well_name = f"{row_letter}{col_num}"
                                 reagents[reagent_name][well_name] = volume
+                                protocol.comment(f"  Found {reagent_name} -> {well_name}: {volume}µL")
                         except (ValueError, TypeError):
                             pass
     
     # Step 3: Parse pause settings
-    # Look for section with "Pause Robot Before Starting" or "Reagent Pause"
     in_pause_section = False
     for row in csv_rows:
         for cell in row:
@@ -130,14 +129,12 @@ def run(protocol: protocol_api.ProtocolContext):
                 break
         
         if in_pause_section and len(row) > 1:
-            # Look for reagent names paired with Yes/No
             for col_idx in range(len(row) - 1):
                 reagent_name = str(row[col_idx]).strip()
                 pause_value = str(row[col_idx + 1]).strip().upper()
                 
                 if reagent_name in reagents and pause_value in ['YES', 'NO']:
                     reagent_pause[reagent_name] = (pause_value == 'YES')
-                    protocol.comment(f"Pause for {reagent_name}: {pause_value}")
     
     # Step 4: Parse "Mix Each Well After Adding Reagent" settings
     in_mix_after_section = False
@@ -148,14 +145,12 @@ def run(protocol: protocol_api.ProtocolContext):
                 break
         
         if in_mix_after_section and len(row) > 1:
-            # Look for reagent names paired with numbers
             for col_idx in range(len(row) - 1):
                 reagent_name = str(row[col_idx]).strip()
                 try:
                     mix_times = int(float(row[col_idx + 1]))
-                    if reagent_name in reagents and mix_times >= 0:
+                    if reagent_name in reagents:
                         reagent_mix_after[reagent_name] = mix_times
-                        protocol.comment(f"Mix after for {reagent_name}: {mix_times}")
                 except:
                     pass
     
@@ -168,7 +163,6 @@ def run(protocol: protocol_api.ProtocolContext):
                 break
         
         if in_mix_before_section and len(row) > 3:
-            # Look for reagent names with 3 numbers: start, interval, times
             reagent_name = str(row[0]).strip()
             if reagent_name in reagents:
                 try:
@@ -180,7 +174,6 @@ def run(protocol: protocol_api.ProtocolContext):
                         'interval': mix_interval,
                         'times': mix_times
                     }
-                    protocol.comment(f"Mix before for {reagent_name}: start={mix_start}, interval={mix_interval}, times={mix_times}")
                 except:
                     pass
     
@@ -204,10 +197,10 @@ def run(protocol: protocol_api.ProtocolContext):
         if num_wells > 0:
             protocol.comment(f"  Wells to fill: {list(reagents[reagent_name].keys())}")
         protocol.comment(f"  Pause before: {'Yes' if pause else 'No'}")
-        protocol.comment(f"  Mix in well: {mix_after} times")
-        protocol.comment(f"  Mix at start: {mix_before['start']} times")
+        protocol.comment(f"  Mix in well after dispense: {mix_after} times")
+        protocol.comment(f"  Mix source at start: {mix_before['start']} times")
         if mix_before['interval'] > 0:
-            protocol.comment(f"  Mix every {mix_before['interval']} samples: {mix_before['times']} times")
+            protocol.comment(f"  Mix source every {mix_before['interval']} samples: {mix_before['times']} times")
     protocol.comment("=" * 60)
     
     # ============================================================================
@@ -256,42 +249,56 @@ def run(protocol: protocol_api.ProtocolContext):
     # DISPENSE REAGENTS
     # ============================================================================
     for reagent_name in reagent_list:
+        protocol.comment(f"\n>>> Processing reagent: {reagent_name}")
+        
         if len(reagents[reagent_name]) == 0:
-            protocol.comment(f"Skipping {reagent_name} - no wells defined")
+            protocol.comment(f"  SKIPPING - no wells defined")
             continue
+        
+        protocol.comment(f"  Wells to dispense: {list(reagents[reagent_name].keys())}")
         
         if reagent_pause.get(reagent_name, False):
             protocol.pause(f"Please add {reagent_name} to tube and click Resume")
         
-        protocol.comment(f"\nDispensing {reagent_name}...")
         source_tube = reagent_tubes[reagent_name]
         wells_to_fill = reagents[reagent_name]
         
         mix_after = reagent_mix_after.get(reagent_name, 0)
         mix_before = reagent_mix_before.get(reagent_name, {'start': 0, 'interval': 0, 'times': 0})
         
-        p20.pick_up_tip()
+        protocol.comment(f"  Mix settings - after:{mix_after}, before:{mix_before}")
         
+        # Pick up tip
+        p20.pick_up_tip()
+        protocol.comment(f"  Picked up tip")
+        
+        # Mix at start if specified
         if mix_before['start'] > 0:
-            protocol.comment(f"  Mixing {reagent_name} in tube {mix_before['start']} times")
+            protocol.comment(f"  >>> MIXING SOURCE TUBE {mix_before['start']} times at start")
             p20.mix(mix_before['start'], 15, source_tube.bottom(z=1))
             p20.blow_out(source_tube.top(z=-2))
+            protocol.comment(f"  >>> Source tube mixing complete")
         
+        # Dispense to each well
         sample_count = 0
         for well_name, volume in wells_to_fill.items():
             sample_count += 1
             dest_well = dest_plate[well_name]
+            
+            protocol.comment(f"  Sample {sample_count}: Dispensing {volume}µL to {well_name}")
             
             # Update total volume for this well
             if well_name not in well_total_volumes:
                 well_total_volumes[well_name] = 0
             well_total_volumes[well_name] += volume
             
+            # Mix during dispensing if interval is reached
             if mix_before['interval'] > 0 and sample_count % mix_before['interval'] == 0 and mix_before['times'] > 0:
-                protocol.comment(f"  Mixing {reagent_name} after {sample_count} samples")
+                protocol.comment(f"  >>> MIXING SOURCE TUBE after {sample_count} samples: {mix_before['times']} times")
                 p20.mix(mix_before['times'], 15, source_tube.bottom(z=1))
                 p20.blow_out(source_tube.top(z=-2))
             
+            # Handle volumes that need splitting (>20µL)
             if volume > 20:
                 num_transfers = math.ceil(volume / 20)
                 for i in range(num_transfers):
@@ -305,15 +312,18 @@ def run(protocol: protocol_api.ProtocolContext):
                 p20.dispense(volume, dest_well.bottom(z=1))
                 p20.blow_out(dest_well.top(z=-2))
             
+            # Mix in well if specified
             if mix_after > 0:
-                # Mix based on TOTAL volume in well
                 total_vol = well_total_volumes[well_name]
                 mix_volume = max(2, min(total_vol * 0.8, 18))
+                protocol.comment(f"  >>> MIXING WELL {well_name}: {mix_after} times with {mix_volume}µL (total vol={total_vol}µL)")
                 p20.mix(mix_after, mix_volume, dest_well.bottom(z=0.5))
                 p20.blow_out(dest_well.top(z=-2))
+                protocol.comment(f"  >>> Well mixing complete")
         
+        # Drop tip
         p20.drop_tip()
-        protocol.comment(f"  Completed {len(wells_to_fill)} wells")
+        protocol.comment(f"  Completed {len(wells_to_fill)} wells for {reagent_name}")
     
     protocol.comment("=" * 60)
     protocol.comment("PROTOCOL COMPLETE!")
