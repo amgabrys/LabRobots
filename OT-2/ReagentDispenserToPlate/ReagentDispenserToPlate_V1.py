@@ -29,7 +29,7 @@ def run(protocol: protocol_api.ProtocolContext):
     # ============================================================================
     num_reagents = protocol.params.num_reagents
     # ============================================================================
-    # PARSE EXCEL/CSV DATA - MODIFIED FOR HORIZONTAL LAYOUT
+    # PARSE EXCEL/CSV DATA - FOR HORIZONTAL TEMPLATE LAYOUT
     # ============================================================================
     csv_data = protocol.params.reagent_layout.parse_as_csv()
     csv_rows = list(csv_data)
@@ -40,131 +40,155 @@ def run(protocol: protocol_api.ProtocolContext):
     reagent_mix_after = {}
     reagent_mix_before = {}
     
-    # Find the header row with column numbers
-    header_row_idx = -1
-    volume_col_start = -1
-    
-    for idx, row in enumerate(csv_rows):
-        if len(row) > 3:
-            # Look for row with "Volume (ul)" and numbered columns
-            if 'Volume (ul)' in str(row):
-                header_row_idx = idx
-                # Find where the numbered columns start
-                for col_idx, cell in enumerate(row):
-                    try:
-                        if float(str(cell).strip()) == 1.0:
-                            volume_col_start = col_idx
-                            break
-                    except:
-                        continue
+    # Step 1: Find all reagent names by looking for "Reagent Unique Name:" rows
+    reagent_name_rows = []
+    for row_idx, row in enumerate(csv_rows):
+        for col_idx, cell in enumerate(row):
+            if 'Reagent Unique Name:' in str(cell):
+                # Look for reagent name in adjacent cells (same row, next columns)
+                for next_col in range(col_idx + 1, min(col_idx + 5, len(row))):
+                    potential_name = str(row[next_col]).strip()
+                    if potential_name and potential_name not in ['', 'Pause', 'Volume', 'Reagent']:
+                        reagent_name_rows.append({'name': potential_name, 'row_idx': row_idx})
+                        reagents[potential_name] = {}
+                        protocol.comment(f"Found reagent: {potential_name} at row {row_idx}")
+                        break
                 break
     
-    if header_row_idx == -1 or volume_col_start == -1:
-        protocol.comment("ERROR: Could not find volume data structure in CSV")
+    if not reagents:
+        protocol.comment("ERROR: No reagents found in CSV")
         return
     
-    # Find reagent name from the row before header
-    current_reagent = None
-    if header_row_idx > 0:
-        for cell in csv_rows[header_row_idx - 1]:
-            cell_str = str(cell).strip()
-            if 'Reagent Unique Name:' in cell_str:
-                parts = cell_str.split(':')
-                if len(parts) > 1 and parts[1].strip():
-                    current_reagent = parts[1].strip()
-                    reagents[current_reagent] = {}
-                    break
-    
-    if not current_reagent:
-        protocol.comment("ERROR: Could not find reagent name")
-        return
-    
-    # Parse volume data rows (A-H)
-    for row_idx in range(header_row_idx + 1, min(header_row_idx + 9, len(csv_rows))):
-        if row_idx >= len(csv_rows):
-            break
-        row = csv_rows[row_idx]
-        if len(row) == 0:
-            continue
+    # Step 2: Parse volume data for each reagent
+    # Look for rows with "Volume (ul)" followed by numbered columns, then row letters with values
+    for reagent_info in reagent_name_rows:
+        reagent_name = reagent_info['name']
+        start_row = reagent_info['row_idx']
         
-        # Find the row letter
-        row_letter = None
-        for cell in row:
-            cell_str = str(cell).strip()
-            if cell_str in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
-                row_letter = cell_str
+        # Find the "Volume (ul)" row for this reagent (should be next row)
+        volume_header_row = None
+        col_number_positions = {}  # {column_number: col_idx}
+        
+        for row_idx in range(start_row, min(start_row + 3, len(csv_rows))):
+            row = csv_rows[row_idx]
+            for col_idx, cell in enumerate(row):
+                if 'Volume (ul)' in str(cell) or 'Volume' in str(cell):
+                    volume_header_row = row_idx
+                    # Map column numbers (1.0, 2.0, etc.) to their positions
+                    for num_col_idx in range(col_idx + 1, min(col_idx + 15, len(row))):
+                        try:
+                            col_num = int(float(str(row[num_col_idx]).strip()))
+                            if 1 <= col_num <= 12:
+                                col_number_positions[col_num] = num_col_idx
+                        except:
+                            pass
+                    break
+            if volume_header_row:
                 break
         
-        if not row_letter:
+        if not volume_header_row or not col_number_positions:
+            protocol.comment(f"Could not find volume data structure for {reagent_name}")
             continue
         
-        # Extract volumes from the numbered columns
-        for col_offset in range(12):
-            col_idx = volume_col_start + col_offset
-            if col_idx < len(row):
-                try:
-                    volume = float(row[col_idx])
-                    if volume > 0:
-                        well_name = f"{row_letter}{col_offset + 1}"
-                        reagents[current_reagent][well_name] = volume
-                except (ValueError, TypeError):
-                    continue
-    
-    # Parse pause settings - look for rows with reagent names and Yes/No
-    for row in csv_rows:
-        if len(row) > 1:
-            for col_idx in range(len(row) - 1):
-                cell_val = str(row[col_idx]).strip()
-                next_val = str(row[col_idx + 1]).strip().upper()
-                if cell_val == current_reagent and next_val in ['YES', 'NO']:
-                    reagent_pause[current_reagent] = (next_val == 'YES')
-                    break
-    
-    # Parse mix after settings - look for "Mix Each Well" section
-    in_mix_section = False
-    for row in csv_rows:
-        if len(row) > 0:
-            first_cell = str(row[0]).strip()
-            if 'Mix  Each Well' in first_cell or 'Mix Each Well' in first_cell:
-                in_mix_section = True
+        # Parse volume rows (A-H) after the header
+        for row_idx in range(volume_header_row + 1, min(volume_header_row + 10, len(csv_rows))):
+            row = csv_rows[row_idx]
+            if len(row) == 0:
                 continue
-            if in_mix_section and len(row) > 1:
-                try:
-                    rname = str(row[0]).strip()
-                    mixes = int(float(row[1]))
-                    if rname and rname in reagents:
-                        reagent_mix_after[rname] = mixes
-                except:
-                    continue
+            
+            # Find row letter
+            row_letter = None
+            for cell in row:
+                cell_str = str(cell).strip()
+                if cell_str in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                    row_letter = cell_str
+                    break
+            
+            if not row_letter:
+                continue
+            
+            # Extract volumes from mapped column positions
+            for col_num in range(1, 13):
+                if col_num in col_number_positions:
+                    col_idx = col_number_positions[col_num]
+                    if col_idx < len(row):
+                        try:
+                            volume = float(row[col_idx])
+                            if volume > 0:
+                                well_name = f"{row_letter}{col_num}"
+                                reagents[reagent_name][well_name] = volume
+                        except (ValueError, TypeError):
+                            pass
     
-    # Parse mix before settings - look for "Mix the Reagents Before" section
+    # Step 3: Parse pause settings
+    # Look for section with "Pause Robot Before Starting" or "Reagent Pause"
+    in_pause_section = False
+    for row in csv_rows:
+        for cell in row:
+            if 'Pause Robot Before Starting' in str(cell) or 'Reagent Pause' in str(cell):
+                in_pause_section = True
+                break
+        
+        if in_pause_section and len(row) > 1:
+            # Look for reagent names paired with Yes/No
+            for col_idx in range(len(row) - 1):
+                reagent_name = str(row[col_idx]).strip()
+                pause_value = str(row[col_idx + 1]).strip().upper()
+                
+                if reagent_name in reagents and pause_value in ['YES', 'NO']:
+                    reagent_pause[reagent_name] = (pause_value == 'YES')
+                    protocol.comment(f"Pause for {reagent_name}: {pause_value}")
+    
+    # Step 4: Parse "Mix Each Well After Adding Reagent" settings
+    in_mix_after_section = False
+    for row in csv_rows:
+        for cell in row:
+            if 'Mix  Each Well' in str(cell) or 'Mix Each Well' in str(cell):
+                in_mix_after_section = True
+                break
+        
+        if in_mix_after_section and len(row) > 1:
+            # Look for reagent names paired with numbers
+            for col_idx in range(len(row) - 1):
+                reagent_name = str(row[col_idx]).strip()
+                try:
+                    mix_times = int(float(row[col_idx + 1]))
+                    if reagent_name in reagents and mix_times >= 0:
+                        reagent_mix_after[reagent_name] = mix_times
+                        protocol.comment(f"Mix after for {reagent_name}: {mix_times}")
+                except:
+                    pass
+    
+    # Step 5: Parse "Mix the Reagents Before Adding to the Wells" settings
     in_mix_before_section = False
     for row in csv_rows:
-        if len(row) > 0:
-            first_cell = str(row[0]).strip()
-            if 'Mix the Reagents Before' in first_cell:
+        for cell in row:
+            if 'Mix the Reagents Before' in str(cell):
                 in_mix_before_section = True
-                continue
-            if in_mix_before_section and len(row) > 3:
+                break
+        
+        if in_mix_before_section and len(row) > 3:
+            # Look for reagent names with 3 numbers: start, interval, times
+            reagent_name = str(row[0]).strip()
+            if reagent_name in reagents:
                 try:
-                    rname = str(row[0]).strip()
                     mix_start = int(float(row[1]))
                     mix_interval = int(float(row[2]))
-                    mix_during = int(float(row[3]))
-                    if rname and rname in reagents:
-                        reagent_mix_before[rname] = {
-                            'start': mix_start,
-                            'interval': mix_interval,
-                            'times': mix_during
-                        }
+                    mix_times = int(float(row[3]))
+                    reagent_mix_before[reagent_name] = {
+                        'start': mix_start,
+                        'interval': mix_interval,
+                        'times': mix_times
+                    }
+                    protocol.comment(f"Mix before for {reagent_name}: start={mix_start}, interval={mix_interval}, times={mix_times}")
                 except:
-                    continue
+                    pass
     
     # Keep only the first num_reagents
     reagent_list = list(reagents.keys())[:num_reagents]
     
     if not reagent_list:
-        protocol.comment("ERROR: No reagents found in CSV file")
+        protocol.comment("ERROR: No reagents with wells found")
         return
     
     protocol.comment("=" * 60)
@@ -177,7 +201,8 @@ def run(protocol: protocol_api.ProtocolContext):
         mix_before = reagent_mix_before.get(reagent_name, {'start': 0, 'interval': 0, 'times': 0})
         protocol.comment(f"\n{reagent_name}:")
         protocol.comment(f"  Wells: {num_wells}")
-        protocol.comment(f"  Wells to fill: {list(reagents[reagent_name].keys())}")
+        if num_wells > 0:
+            protocol.comment(f"  Wells to fill: {list(reagents[reagent_name].keys())}")
         protocol.comment(f"  Pause before: {'Yes' if pause else 'No'}")
         protocol.comment(f"  Mix in well: {mix_after} times")
         protocol.comment(f"  Mix at start: {mix_before['start']} times")
@@ -219,8 +244,6 @@ def run(protocol: protocol_api.ProtocolContext):
         if idx < len(tube_positions):
             reagent_tubes[reagent_name] = reagent_rack[tube_positions[idx]]
             protocol.comment(f"Load {reagent_name} in tube {tube_positions[idx]}")
-        else:
-            protocol.comment(f"WARNING: Not enough tube positions for {reagent_name}")
     
     protocol.comment("=" * 60)
     protocol.comment("STARTING REAGENT DISPENSING")
@@ -233,11 +256,8 @@ def run(protocol: protocol_api.ProtocolContext):
     # DISPENSE REAGENTS
     # ============================================================================
     for reagent_name in reagent_list:
-        if reagent_name not in reagents or len(reagents[reagent_name]) == 0:
+        if len(reagents[reagent_name]) == 0:
             protocol.comment(f"Skipping {reagent_name} - no wells defined")
-            continue
-        if reagent_name not in reagent_tubes:
-            protocol.comment(f"Skipping {reagent_name} - no tube position assigned")
             continue
         
         if reagent_pause.get(reagent_name, False):
