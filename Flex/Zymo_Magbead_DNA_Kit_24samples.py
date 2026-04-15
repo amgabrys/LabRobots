@@ -1,6 +1,6 @@
 def get_values(*names):
     import json
-    _all_values = json.loads("""{"trash_chute":false,"USE_GRIPPER":true,"dry_run":false,"mount":"right","temp_mod":true,"res_type":"nest_12_reservoir_15ml","heater_shaker":true,"num_samples":24,"wash1_vol":500,"wash2_vol":900,"wash3_vol":900,"sample_vol":200,"bind_vol":600,"bind2_vol":500,"elution_vol":50,"protocol_filename":"Zymo_Magbead_DNA_TestRun_24samples"}""")
+    _all_values = json.loads("""{"trash_chute":true,"USE_GRIPPER":true,"dry_run":false,"mount":"right","temp_mod":true,"res_type":"nest_12_reservoir_15ml","heater_shaker":true,"num_samples":24,"wash1_vol":500,"wash2_vol":900,"wash3_vol":900,"sample_vol":200,"bind_vol":600,"bind2_vol":500,"elution_vol":50,"protocol_filename":"Zymo_Magbead_DNA_TestRun_24samples"}""")
     return [_all_values[n] for n in names]
 
 from opentrons.types import Point
@@ -31,7 +31,7 @@ def run(ctx):
     """
     Modified protocol with thermocycler removed, original positions preserved
     """
-    trash_chute    = False
+    trash_chute    = True  # Changed from False
     USE_GRIPPER    = True
     dry_run        = False
     mount          = 'right'
@@ -192,9 +192,10 @@ def run(ctx):
             tip1k = tip1k + 8
 
         drop_count = drop_count + 8
-        if drop_count >= 150:
-            drop_count = 0
-            ctx.pause("Please empty the waste bin of all the tips before continuing.")
+    	# Removed the pause for emptying trash since we're using a trash chute
+    	# if drop_count >= 150:
+    	#     drop_count = 0
+    	#     ctx.pause("Please empty the waste bin of all the tips before continuing.")
 
     def blink():
         for i in range(3):
