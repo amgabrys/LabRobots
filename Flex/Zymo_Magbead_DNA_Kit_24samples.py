@@ -10,7 +10,7 @@ from opentrons import types
 import numpy as np
 
 metadata = {
-    'protocolName': 'Zymo Magbead DNA Extraction 24 Samples V13_2',
+    'protocolName': 'Zymo Magbead DNA Extraction 24 Samples V13_2 trash chute',
     'author': 'OpentronsAI',
     'description': 'DNA extraction protocol using magnetic beads - Thermocycler removed',
     'source': 'OpentronsAI'
