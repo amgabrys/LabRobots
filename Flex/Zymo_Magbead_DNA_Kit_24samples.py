@@ -106,7 +106,6 @@ class DeckLayout:
     LIQUID_WASTE   =    'C3'
     REAGENT_RES_1  =    'D2'
     REAGENT_RES_2  =    'C2'
-    TRASH_BIN      =    'D3'
 
     #Tips
     TIPS_1000_1    =    'A2'
@@ -145,7 +144,6 @@ class RunTimeParameters:
     WASH_COUNT   = 1
     TIP1000     = 0
     TIP200      = 0
-    DROP_COUNT  = 0
     WASTE_VOL   = 0
 
 
@@ -167,8 +165,8 @@ def run(ctx):
         for setting in timers.__dataclass_fields__:
             setattr(timers, setting, 0.25) 
 
-    #Load trash bin
-    trash = ctx.load_trash_bin(deck.TRASH_BIN)
+    #Load trash chute
+    trash = ctx.load_waste_chute()
 
     #Load heater shaker
     mod_heater_shaker = ctx.load_module('heaterShakerModuleV1',deck.HEATER_SHAKER)
@@ -360,13 +358,8 @@ def run(ctx):
         m1000.return_tip()
 
     def drop_tips():
-        """Used to track"""
-
+        """Used to track"""  
         m1000.drop_tip()
-        runtime.DROP_COUNT += 1
-        if runtime.DROP_COUNT >= 18: #18 x 8 = num of pipettes that waste bin can store
-            runtime.DROP_COUNT = 0
-            ctx.pause("Please empty the waste bin before continuing.")
 
     def move_to_magnet(source_plate: Labware, duration: float = 0):
         transport(source_plate, magblock, drop_offset={"x": 0, "y": 0, "z": -1})
