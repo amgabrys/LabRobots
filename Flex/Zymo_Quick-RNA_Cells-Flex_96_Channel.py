@@ -1,6 +1,6 @@
 def get_values(*names):
             import json
-            _all_values = json.loads("""{"trash_chute":true,"USE_GRIPPER":true,"dry_run":false,"temp_mod":true,"heater_shaker":true,"tip_mixing":true,"sample_vol":300,"wash_vol":400,"stop_vol":500,"lysis_vol":200,"bind_vol":400,"dnase_vol":50,"elution_vol":110,"protocol_filename":"Zymo_Quick-RNA_Cells-Flex_96_Channel"}""")
+            _all_values = json.loads("""{"trash_chute":true,"USE_GRIPPER":true,"dry_run":true,"temp_mod":true,"heater_shaker":true,"tip_mixing":true,"sample_vol":300,"wash_vol":400,"stop_vol":500,"lysis_vol":200,"bind_vol":400,"dnase_vol":50,"elution_vol":110,"protocol_filename":"Zymo_Quick-RNA_Cells-Flex_96_Channel"}""")
             return [_all_values[n] for n in names]
 
 
@@ -29,7 +29,7 @@ def run(ctx):
     (note that this is the recommended configuration)
     """
     USE_GRIPPER     = True
-    trash_chute     = False
+    trash_chute     = True
     dry_run         = True
     temp_mod        = True
     heater_shaker   = True
