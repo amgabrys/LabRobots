@@ -1,6 +1,6 @@
 def get_values(*names):
     import json
-    _all_values = json.loads("""{"trash_chute":false,"USE_GRIPPER":true,"dry_run":false,"mount":"right","temp_mod":true,"res_type":"nest_12_reservoir_15ml","heater_shaker":true,"num_samples":48,"wash1_vol":500,"wash2_vol":900,"wash3_vol":900,"sample_vol":200,"bind_vol":600,"bind2_vol":500,"elution_vol":50,"protocol_filename":"Zymo_Magbead_DNA_TestRun_24samples"}""")
+    _all_values = json.loads("""{"trash_chute":false,"USE_GRIPPER":true,"dry_run":false,"mount":"right","temp_mod":true,"res_type":"opentrons_tough_12_reservoir_22ml","heater_shaker":true,"num_samples":48,"wash1_vol":500,"wash2_vol":900,"wash3_vol":900,"sample_vol":200,"bind_vol":600,"bind2_vol":500,"elution_vol":50,"protocol_filename":"Zymo_Magbead_DNA_TestRun_24samples"}""")
     return [_all_values[n] for n in names]
 
 from opentrons.types import Point
@@ -10,7 +10,7 @@ from opentrons import types
 import numpy as np
 
 metadata = {
-    'protocolName': 'Zymo Magbead DNA Extraction 48 Samples V1.3',
+    'protocolName': 'Zymo Magbead DNA Extraction 48 Samples V1.4',
     'author': 'OpentronsAI',
     'description': 'DNA extraction protocol using magnetic beads',
     'source': 'OpentronsAI'
@@ -35,7 +35,7 @@ def run(ctx):
     USE_GRIPPER    = True
     dry_run        = False
     mount          = 'right'
-    res_type       = "nest_12_reservoir_15ml"
+    res_type       = "opentrons_tough_12_reservoir_22ml"
     temp_mod       = True
     heater_shaker  = True
 
